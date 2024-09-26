@@ -15,7 +15,7 @@
 #' @keywords internal
 #'
 #' @export
-compute.att_gt <- function(dp) {
+compute.att_gt <- function(dp, ...) {
 
   #-----------------------------------------------------------------------------
   # unpack DIDparams
@@ -244,13 +244,15 @@ compute.att_gt <- function(dp) {
         # code for actually computing att(g,t)
         #-----------------------------------------------------------------------------
 
+        ddml_fit <- NULL
         if (inherits(est_method,"function")) {
           # user-specified function
           attgt <- est_method(y1=Ypost, y0=Ypre,
                               D=G,
                               covariates=covariates,
                               i.weights=w,
-                              inffunc=TRUE)
+                              inffunc=TRUE,
+                              ...)
         } else if (est_method == "ipw") {
           # inverse-probability weights
           attgt <- DRDID::std_ipw_did_panel(Ypost, Ypre, G,
@@ -263,6 +265,56 @@ compute.att_gt <- function(dp) {
                                         covariates=covariates,
                                         i.weights=w,
                                         boot=FALSE, inffunc=TRUE)
+        } else if (est_method == "ddml") {
+          # doubly robust estimation w/ ddml
+
+          # 1. Construct subsamples from ddml_subsamples
+          # Collect subsamples from list of ids
+          id <- as.matrix(disdat[,..idname])
+          is_D <- which(G==1)
+          ddml_subsamples <- dp$ddml_subsamples
+          subsamples_D1 <- lapply(ddml_subsamples[[as.character(glist[g])]],
+                                  function(list_1) {
+              subsample <- match(list_1, id[is_D])
+              subsample <- subsample[!is.na(subsample)]
+          })#LAPPLY
+          subsamples_D0 <- rep(list(NULL), length(subsamples_D1))
+          ddml_subsamples[[as.character(glist[g])]] <- NULL
+          subsamples_D0_tmp <- lapply(ddml_subsamples, function(list_1) {
+            lapply(list_1, function (list_2) {
+              subsample <- match(list_2, id[-is_D])
+              subsample <- subsample[!is.na(subsample)]
+            })#LAPPLY
+          })#LAPPLY
+          sample_folds <- length(subsamples_D1)
+          subsamples_D0 <- rep(list(NULL), sample_folds)
+          for (k in 1:sample_folds){
+            subsamples_D0[[k]] <- unname(unlist(sapply(subsamples_D0_tmp,
+                                                function (x) x[[k]])))
+          }#FOR
+          subsamples_byD <- list(subsamples_D0, subsamples_D1)
+
+           # 2. Estimate GT-ATT with ddml
+          args <- list(...)
+          which_args <- names(args) %in% names(formals(ddml::ddml_att))
+          ddml_fit <- do.call(what = ddml::ddml_att,
+                              args = c(list(y = Ypost - Ypre,
+                                            D = G,
+                                            X = as.matrix(covariates),
+                                            subsamples_byD = subsamples_byD),
+                                       args[which_args]))
+
+          # ddml_fit <- do.call(what = ddml::ddml_att,
+          #                     args = list(y = Ypost - Ypre,
+          #                                   D = G,
+          #                                   X = as.matrix(covariates),
+          #                                   subsamples_byD = subsamples_byD,
+          #                                 learners=learners))
+
+          # 3. Organize results
+          inf.func <- ddml_fit$psi_b + ddml_fit$att * ddml_fit$psi_a
+          attgt <- list(ATT = ddml_fit$att, att.inf.func = inf.func)
+
         } else {
           # doubly robust, this is default
           attgt <- DRDID::drdid_panel(Ypost, Ypre, G,
@@ -354,7 +406,8 @@ compute.att_gt <- function(dp) {
                               D=G,
                               covariates=covariates,
                               i.weights=w,
-                              inffunc=TRUE)
+                              inffunc=TRUE,
+                              ...)
         } else if (est_method == "ipw") {
           # inverse-probability weights
           attgt <- DRDID::std_ipw_did_rc(y=Y,
@@ -396,7 +449,10 @@ compute.att_gt <- function(dp) {
 
       # save results for this att(g,t)
       attgt.list[[counter]] <- list(
-        att = attgt$ATT, group = glist[g], year = tlist[(t+tfac)], post = post.treat
+        att = attgt$ATT, group = glist[g], year = tlist[(t+tfac)], post = post.treat,
+        ddml_fit = list(weights = ddml_fit$weights,
+                        mspe = ddml_fit$mspe,
+                        rf = ddml_fit$oos_pred)
       )
 
 

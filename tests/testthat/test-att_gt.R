@@ -1,5 +1,6 @@
 library(DRDID)
 library(BMisc)
+library(ddml)
 #library(ggplot2)
 #library(ggpubr)
 
@@ -658,4 +659,192 @@ test_that("clustered standard errors", {
   res_rc <- att_gt(yname="Y", xformla=~X, data=data, tname="period", idname="id", control_group="notyettreated",
                    gname="G", est_method="dr", clustervars="cluster", panel=FALSE)
   expect_equal(res_rc$att[1], 1, tol=.5)
+})
+
+test_that("att_gt computes with ddml", {
+  # set.seed(09142024)
+  # sp <- did::reset.sim()
+  # data <- did::build_sim_dataset(sp, panel=TRUE)
+  #
+  # data <- mpdta
+
+  yname="lemp"
+  tname="year"
+  idname="countyreal"
+  gname="first.treat"
+  xformla=~lpop
+  data=mpdta
+  panel=TRUE
+  allow_unbalanced_panel=FALSE
+  control_group="notyettreated"
+  anticipation=0
+  weightsname=NULL
+  alp=0.05
+  bstrap=TRUE
+  cband=TRUE
+  biters=100
+  clustervars=NULL
+  est_method="ddml" # adds "ddml"
+  base_period="varying"
+  print_details=FALSE
+  pl=FALSE
+  cores=1
+  learners=list(list(fun=ddml::ols))
+
+  # dr
+  res1 <- att_gt( yname="lemp",
+                  tname="year",
+                  idname="countyreal",
+                  gname="first.treat",
+                  xformla=~lpop,
+                 data=mpdta,
+                 control_group="notyettreated")
+  res1$att
+
+  trim_method <- function(y1, y0, D, covariates, ...) {
+    # Compute difference in outcomes
+    delta_y <- y1 - y0
+    # Estimate nuisance parameters
+    logit_fit <- parglm::parglm(D ~ covariates, family = "binomial")
+    m_X <- as.matrix(predict(logit_fit, type="response"))
+    m_X_tr <- ddml:::trim_propensity_scores(m_X, trim=0.01,
+                                            ensemble_type="something")
+    X <- model.matrix(~covariates)
+    ols_fit <- ddml::ols(delta_y[D==0], X[D==0, , drop = F])
+    g_X_D0 <- ddml:::predict.ols(ols_fit, X)
+    p <- mean(D==1)
+    # Compute the ATT
+    psi_b <- D * (delta_y - g_X_D0) / p -
+      m_X_tr * (1 - D) * (delta_y - g_X_D0) / (p * (1 - m_X_tr))
+    psi_a <- -D / p
+    att <- -mean(psi_b) / mean(psi_a)
+    # Return results
+    inf.func <- psi_b + att * psi_a
+    output <- list(ATT = att, att.inf.func = inf.func)
+    return(output)
+  }#trim_method
+
+  res10 <- att_gt(yname="lemp",
+                  tname="year",
+                  idname="countyreal",
+                  gname="first.treat",
+                  xformla=~lpop,
+                  data=mpdta,
+                  control_group="notyettreated",
+                 est_method=trim_method)
+  res10$att
+
+  data$group <- data$G
+  res2 <- att_gt(yname="lemp",
+                 tname="year",
+                 idname="countyreal",
+                 gname="first.treat",
+                 xformla=~lpop,
+                 data=mpdta,
+                 control_group="notyettreated",
+                est_method = "ddml",
+                learners=list(list(fun=ddml::ols)),
+                ensemble_type="nnls1",
+                sample_folds=10,
+                shortstack=T,
+                silent=FALSE)
+
+  res2$DIDparams$ddml_subsamples
+
+  res2$att
+  res2$ddml_rf
+  res2$ddml_mspe
+
+  res3 <- att_gt(yname="Y",
+                 tname="period",
+                 idname="id",
+                 gname="G",
+                 xformla=~X,
+                 data=data,
+                 control_group="notyettreated",
+                 est_method = "ddml",
+                 learners=list(list(fun=ddml::ols),
+                               list(fun=ddml::mdl_ranger)),
+                 ensemble_type="nnls1",
+                 sample_folds=2,
+                 subsamples_byG=res2$DIDparams$ddml_subsamples,
+                 shortstack=T,
+                 silent=FALSE)
+
+  res3$att
+  res3$ddml_rf
+  res3$ddml_mspe
+
+  library(readstata13)
+  library(dplyr)
+  dat <- read.dta13("data/HRS_long.dta") %>%
+    filter(wave >= 7) %>%
+    group_by(hhidpn) %>%
+    mutate(n = n()) %>%
+    filter(n == 5) %>%
+    filter((first_hosp > 7) & !is.na(first_hosp)) %>%
+    filter(ever_hospitalized == 1) %>% # redundant
+    filter(age_hosp <= 59)
+  # Add additional controls
+  dat_new_controls <- dat %>% filter(wave == 7) %>%
+    select(hitot_inc, # "inc" adds up the elements that are not other/unearned income (earnings, government transfers, and pensions)
+           hatota, # Code up pre-hospitalization wealth quartiles and zero assets
+           hhidpn) %>%
+    rename(hitot_inc7 = hitot_inc,
+           hatota7 = hatota)
+  dat <- dat %>% left_join(dat_new_controls, by="hhidpn")
+
+  yname = "oop_spend"
+  gname = "first_hosp"
+  idname = "hhidpn"
+  tname = "wave"
+  xformla=~ ~ ragey_b+ragey_b^2+ragey_b^3+female+black+
+    hispanic+race_other+hs_grad+some_college+collegeplus +
+    hitot_inc7+hatota7
+  data=dat
+
+  res4 <- att_gt(yname = "oop_spend",
+                 gname = "first_hosp",
+                 idname = "hhidpn",
+                 tname = "wave",
+                 xformla=~ ~ ragey_b+ragey_b^2+ragey_b^3+female+black+
+                   hispanic+race_other+hs_grad+some_college+collegeplus +
+                   hitot_inc7+hatota7,
+                 data=dat,
+                 control_group="notyettreated",
+                 est_method = "ddml",
+                 learners=list(list(fun=ddml::ols)),
+                 ensemble_type="nnls",
+                 sample_folds=2,
+                 shortstack=T,
+                 silent=FALSE)
+
+  res4$att
+
+
+
+  # FINISH UNIT TESTS
+
+  # IMPLEMENT EST METHOD WITH P_SCORE TRIMMING!
+
+  # RE-RUN HRS results
+
+  # no never treated group
+  set.seed(09142024)
+  sp <- did::reset.sim()
+  data <- did::build_sim_dataset(sp)
+  data <- subset(data, G > 0) # drop nevertreated
+
+  # dr
+  res <- att_gt(yname="Y", xformla=~X, data=data, tname="period",
+                control_group="notyettreated",
+                gname="G", est_method="dr", panel=FALSE)
+  expect_equal(res$att[1], 1, tol=.5)
+
+
+  # try to use never treated group as comparison group, should error
+  expect_error(att_gt(yname="Y", xformla=~X, data=data, tname="period",
+                      control_group="nevertreated",
+                      gname="G", est_method="dr", panel=FALSE))
+
 })

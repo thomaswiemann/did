@@ -42,7 +42,9 @@ DIDparams <- function(yname,
                    nT=NULL,
                    tlist=NULL,
                    glist=NULL,
-                   call=NULL) {
+                   ddml_subsamples=NULL,
+                   call=NULL,
+                   ...) {
 
   out <- list(yname=yname,
               tname=tname,
@@ -70,7 +72,9 @@ DIDparams <- function(yname,
               nT=nT,
               tlist=tlist,
               glist=glist,
-              call=call)
+              ddml_subsamples=ddml_subsamples,
+              call=call,
+              ...)
   class(out) <- "DIDparams"
   out
 }

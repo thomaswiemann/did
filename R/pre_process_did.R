@@ -31,7 +31,8 @@ pre_process_did <- function(yname,
                             print_details = TRUE,
                             pl = FALSE,
                             cores = 1,
-                            call = NULL) {
+                            call = NULL,
+                            ...) {
   #-----------------------------------------------------------------------------
   # Data pre-processing and error checking
   #-----------------------------------------------------------------------------
@@ -167,6 +168,26 @@ pre_process_did <- function(yname,
   if (!panel) {
     true_repeated_cross_sections <- TRUE
   }
+
+  # Additional pre-processing if est_method == "ddml"
+  ddml_subsamples <- NULL
+  if (!inherits(est_method, "function") && est_method == "ddml") {
+    # Check for compatibility with other arguments
+    if (!is.null(clustervars)) stop("Estimation using ddml is not supported when additional clustervars are specified.")
+
+    # Check whether learners were specified
+    args <- list(...)
+    if (!"learners" %in% names(args))
+      stop("Argument ``learners`` missing with no default. Estimation using ddml requires nuisance estimator specification.")
+
+    # Computes crossfitting subsamples
+    # if (!"sample_folds" %in% names(args)) sample_folds = 10
+    # if (!"cv_folds" %in% names(args)) cv_folds = 10
+    # if (!"subsamples_byG" %in% names(args)) subsamples_byG = NULL
+    ddml_subsamples <- get_ddml_samples(cluster_variable = data[, idname],
+                                        G = data[, gname],
+                                        ...)
+  }#IF
 
   #-----------------------------------------------------------------------------
   # setup data in panel case
@@ -355,5 +376,35 @@ pre_process_did <- function(yname,
                   nT=nT,
                   tlist=tlist,
                   glist=glist,
-                  call=call)
+                  ddml_subsamples=ddml_subsamples,
+                  call=call,
+                  ...)
 }
+
+# Internal function to compute subsamples (for crossfitting and crossvalidation)
+get_ddml_samples <- function(cluster_variable, G,
+                             sample_folds = 10, cv_folds = 10,
+                             subsamples_byG = NULL,
+                             ...) {
+
+  if (is.null(subsamples_byG)) {
+    # Data parameters
+    G_levels <- sort(unique(G))
+    n_G_levels <- length(G_levels)
+    unq_cluster <- unique(cluster_variable)
+    n_cluster <- length(unq_cluster)
+
+    # Create sample fold tuple by group levels
+    subsamples_byG <- rep(list(NULL), n_G_levels)
+    for (g in 1:n_G_levels) {
+      cluster_G <-  sort(unique(cluster_variable[G==G_levels[g]]))
+      tmp_subsamples <- ddml:::generate_subsamples(length(cluster_G),
+                                                   sample_folds)
+      subsamples_byG[[g]] <- lapply(tmp_subsamples, function (x) cluster_G[x])
+    }#FOR
+    names(subsamples_byG) <- G_levels
+  }#IF
+
+  # Return tuple of subsamples of clusters by group
+  subsamples_byG
+}#GET_DDML_SAMPLES

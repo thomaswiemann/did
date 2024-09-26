@@ -179,11 +179,12 @@ att_gt <- function(yname,
                    cband=TRUE,
                    biters=1000,
                    clustervars=NULL,
-                   est_method="dr",
+                   est_method="dr", # adds "ddml"
                    base_period="varying",
                    print_details=FALSE,
                    pl=FALSE,
-                   cores=1) {
+                   cores=1,
+                   ...) {
 
   # this is a DIDparams object
   dp <- pre_process_did(yname=yname,
@@ -207,13 +208,16 @@ att_gt <- function(yname,
                         print_details=print_details,
                         pl=pl,
                         cores=cores,
-                        call=match.call()
+                        call=match.call(),
+                        #learners=learners#,
+                        ...
   )
+
 
   #-----------------------------------------------------------------------------
   # Compute all ATT(g,t)
   #-----------------------------------------------------------------------------
-  results <- compute.att_gt(dp)
+  results <- compute.att_gt(dp, ...)
 
 
   # extract ATT(g,t) and influence functions
@@ -225,8 +229,6 @@ att_gt <- function(yname,
   group <- attgt.results$group
   att <- attgt.results$att
   tt <- attgt.results$tt
-
-
 
   # analytical standard errors
   # estimate variance
@@ -339,6 +341,10 @@ att_gt <- function(yname,
 
 
   # Return this list
-  return(MP(group=group, t=tt, att=att, V_analytical=V, se=se, c=cval, inffunc=inffunc, n=n, W=W, Wpval=Wpval, alp = alp, DIDparams=dp))
+  return(MP(group=group, t=tt, att=att, V_analytical=V, se=se, c=cval,
+            inffunc=inffunc, n=n, W=W, Wpval=Wpval, alp = alp, DIDparams=dp,
+            ddml_weights = attgt.results$ddml_weights,
+            ddml_mspe = attgt.results$ddml_mspe,
+            ddml_rf = attgt.results$ddml_rf))
 
 }
