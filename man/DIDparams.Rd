@@ -31,7 +31,9 @@ DIDparams(
   nT = NULL,
   tlist = NULL,
   glist = NULL,
-  call = NULL
+  ddml_subsamples = NULL,
+  call = NULL,
+  ...
 )
 }
 \arguments{
@@ -104,12 +106,17 @@ Default is \code{FALSE}.}
 
 \item{cores}{The number of cores to use for parallel processing}
 
-\item{est_method}{the method to compute group-time average treatment effects.  The default is "dr" which uses the doubly robust
+\item{est_method}{the method to compute group-time average treatment effects.
+The default is "dr" which uses the doubly robust
 approach in the \code{DRDID} package.  Other built-in methods
-include "ipw" for inverse probability weighting and "reg" for
-first step regression estimators.  The user can also pass their
-own function for estimating group time average treatment
-effects.  This should be a function
+include "ipw" for inverse probability weighting, "reg" for
+first step regression estimators, and "ddml" which relies on the \code{ddml}
+package for double/debiased machine learning. When using the ddml approach,
+users are required to pass the additional named arguments
+\code{learners} (see \link[ddml:ddml_ate]{ddml::ddml_att}).
+
+The user can also pass their own function for estimating group time average
+treatment effects. This should be a function
 \code{f(Y1,Y0,treat,covariates)} where \code{Y1} is an
 \code{n} x \code{1} vector of outcomes in the post-treatment
 outcomes, \code{Y0} is an \code{n} x \code{1} vector of
@@ -172,7 +179,16 @@ of rows in a panel dataset).}
 
 \item{glist}{a vector containing each group}
 
+\item{ddml_subsamples}{Used only when \code{est_method='ddml'}. List of \code{nG}
+lists, each corresponding to a group. Each of the \code{nG} lists contains lists,
+each corresponding to a crossfitting subsample of ids.}
+
 \item{call}{Function call to att_gt}
+
+\item{...}{Additional arguments passed to \code{pre_process_did} and
+\code{ddml_att}, used when \code{est_method='ddml'}. See
+\link{pre_process_did} and \link[ddml:ddml_ate]{ddml::ddml_att} for a complete list of
+arguments.}
 }
 \description{
 Object to hold did parameters that are passed across functions

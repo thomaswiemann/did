@@ -14,6 +14,9 @@
 #' @param true_repeated_cross_sections Whether or not the data really
 #'  is repeated cross sections.  (We include this because unbalanced
 #'  panel code runs through the repeated cross sections code)
+#' @param ddml_subsamples Used only when `est_method='ddml'`. List of `nG`
+#'  lists, each corresponding to a group. Each of the `nG` lists contains lists,
+#'  each corresponding to a crossfitting subsample of ids.
 #'
 #' @export
 DIDparams <- function(yname,

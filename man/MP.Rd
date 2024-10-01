@@ -17,7 +17,10 @@ MP(
   Wpval = NULL,
   aggte = NULL,
   alp = 0.05,
-  DIDparams = NULL
+  DIDparams = NULL,
+  ddml_weights = NULL,
+  ddml_mspe = NULL,
+  ddml_rf = NULL
 )
 }
 \arguments{
@@ -51,6 +54,13 @@ common trends assumption}
 
 \item{DIDparams}{a \code{\link{DIDparams}} object.  A way to optionally return the parameters
 of the call to \code{\link[=att_gt]{att_gt()}} or \code{\link[=conditional_did_pretest]{conditional_did_pretest()}}.}
+
+\item{ddml_weights, ddml_mspe}{When ddml estimation used stacking, returns the
+stacking weights and corresponding mean-square prediction errors of each
+learner for every group and time period.}
+
+\item{ddml_rf}{When ddml estimation was used, returns the out-of-sample
+reduced form predictions for every group and time period.}
 }
 \value{
 MP object

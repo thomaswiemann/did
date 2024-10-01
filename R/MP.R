@@ -20,6 +20,11 @@
 #' @param alp the significance level, default is 0.05
 #' @param DIDparams a [`DIDparams`] object.  A way to optionally return the parameters
 #'  of the call to [att_gt()] or [conditional_did_pretest()].
+#' @param ddml_weights,ddml_mspe When ddml estimation used stacking, returns the
+#'  stacking weights and corresponding mean-square prediction errors of each
+#'  learner for every group and time period.
+#' @param ddml_rf When ddml estimation was used, returns the out-of-sample
+#'  reduced form predictions for every group and time period.
 #'
 #' @return MP object
 #' @export
@@ -121,6 +126,8 @@ summary.MP <- function(object, ...) {
       est_method_text <- "Inverse Probability Weighting"
     } else if (est_method == "reg") {
       est_method_text <- "Outcome Regression"
+    } else if (est_method == "ddml") {
+      est_method_text <- "Double/Debiased Machine Learning"
     }
 
     cat("Estimation Method:  ")

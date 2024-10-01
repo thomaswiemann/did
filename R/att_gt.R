@@ -39,12 +39,17 @@
 #'   Default is `FALSE`.
 #' @param pl Whether or not to use parallel processing
 #' @param cores The number of cores to use for parallel processing
-#' @param est_method the method to compute group-time average treatment effects.  The default is "dr" which uses the doubly robust
+#' @param est_method the method to compute group-time average treatment effects.
+#' The default is "dr" which uses the doubly robust
 #' approach in the `DRDID` package.  Other built-in methods
-#' include "ipw" for inverse probability weighting and "reg" for
-#' first step regression estimators.  The user can also pass their
-#' own function for estimating group time average treatment
-#' effects.  This should be a function
+#' include "ipw" for inverse probability weighting, "reg" for
+#' first step regression estimators, and "ddml" which relies on the `ddml`
+#' package for double/debiased machine learning. When using the ddml approach,
+#' users are required to pass the additional named arguments
+#' `learners` (see [ddml::ddml_att]).
+#'
+#' The user can also pass their own function for estimating group time average
+#' treatment effects. This should be a function
 #' `f(Y1,Y0,treat,covariates)` where `Y1` is an
 #' `n` x `1` vector of outcomes in the post-treatment
 #' outcomes, `Y0` is an `n` x `1` vector of
@@ -114,6 +119,11 @@
 #'  the user allows for anticipation) to be equal to 0, but one
 #'  extra estimate in an earlier period.
 #'
+#' @param ... Additional arguments passed to \code{pre_process_did} and
+#'  \code{ddml_att}, used when \code{est_method='ddml'}. See
+#'  [did::pre_process_did] and [ddml::ddml_att] for a complete list of
+#'  arguments.
+#'
 #' @references Callaway, Brantly and Pedro H.C. Sant'Anna.  \"Difference-in-Differences with Multiple Time Periods.\" Journal of Econometrics, Vol. 225, No. 2, pp. 200-230, 2021. \doi{10.1016/j.jeconom.2020.12.001}, <https://arxiv.org/abs/1803.09015>
 #'
 #' @return an [`MP`] object containing all the results for group-time average
@@ -179,7 +189,7 @@ att_gt <- function(yname,
                    cband=TRUE,
                    biters=1000,
                    clustervars=NULL,
-                   est_method="dr", # adds "ddml"
+                   est_method="dr",
                    base_period="varying",
                    print_details=FALSE,
                    pl=FALSE,
@@ -209,7 +219,6 @@ att_gt <- function(yname,
                         pl=pl,
                         cores=cores,
                         call=match.call(),
-                        #learners=learners#,
                         ...
   )
 

@@ -100,12 +100,17 @@ can be two variables (otherwise will throw an error) and one of these
 must be the same as idname which allows for clustering at the individual
 level. By default, we cluster at individual level (when \code{bstrap=TRUE}).}
 
-\item{est_method}{the method to compute group-time average treatment effects.  The default is "dr" which uses the doubly robust
+\item{est_method}{the method to compute group-time average treatment effects.
+The default is "dr" which uses the doubly robust
 approach in the \code{DRDID} package.  Other built-in methods
-include "ipw" for inverse probability weighting and "reg" for
-first step regression estimators.  The user can also pass their
-own function for estimating group time average treatment
-effects.  This should be a function
+include "ipw" for inverse probability weighting, "reg" for
+first step regression estimators, and "ddml" which relies on the \code{ddml}
+package for double/debiased machine learning. When using the ddml approach,
+users are required to pass the additional named arguments
+\code{learners} (see \link[ddml:ddml_ate]{ddml::ddml_att}).
+
+The user can also pass their own function for estimating group time average
+treatment effects. This should be a function
 \code{f(Y1,Y0,treat,covariates)} where \code{Y1} is an
 \code{n} x \code{1} vector of outcomes in the post-treatment
 outcomes, \code{Y0} is an \code{n} x \code{1} vector of

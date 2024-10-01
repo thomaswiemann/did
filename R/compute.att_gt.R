@@ -4,6 +4,9 @@
 #'  multiperiod group-time average treatment effects
 #'
 #' @param dp A DIDparams object
+#' @param ... Additional arguments passed to \code{ddml_att}, used when
+#' \code{est_method='ddml'}. See [ddml::ddml_att] for a complete list of
+#'  arguments.
 #'
 #' @return a list with length equal to the number of groups times the
 #'  number of time periods; each element of the list contains an
@@ -69,6 +72,9 @@ compute.att_gt <- function(dp, ...) {
     data[, .C := as.integer(get(gname) == 0)]
   }
   data[, .y := get(yname), .SDcols = yname]
+
+  # placeholder in case est_method is not "ddml"
+  ddml_fit <- NULL
 
   # loop over groups
   for (g in 1:nG) {
@@ -244,7 +250,6 @@ compute.att_gt <- function(dp, ...) {
         # code for actually computing att(g,t)
         #-----------------------------------------------------------------------------
 
-        ddml_fit <- NULL
         if (inherits(est_method,"function")) {
           # user-specified function
           attgt <- est_method(y1=Ypost, y0=Ypre,
@@ -269,8 +274,8 @@ compute.att_gt <- function(dp, ...) {
           # doubly robust estimation w/ ddml
 
           # 1. Construct subsamples from ddml_subsamples
-          # Collect subsamples from list of ids
-          id <- as.matrix(disdat[,..idname])
+          # Collect subsamples from list of ids previously constructed
+          id <- as.matrix(disdat[[idname]])
           is_D <- which(G==1)
           ddml_subsamples <- dp$ddml_subsamples
           subsamples_D1 <- lapply(ddml_subsamples[[as.character(glist[g])]],
@@ -303,13 +308,6 @@ compute.att_gt <- function(dp, ...) {
                                             X = as.matrix(covariates),
                                             subsamples_byD = subsamples_byD),
                                        args[which_args]))
-
-          # ddml_fit <- do.call(what = ddml::ddml_att,
-          #                     args = list(y = Ypost - Ypre,
-          #                                   D = G,
-          #                                   X = as.matrix(covariates),
-          #                                   subsamples_byD = subsamples_byD,
-          #                                 learners=learners))
 
           # 3. Organize results
           inf.func <- ddml_fit$psi_b + ddml_fit$att * ddml_fit$psi_a

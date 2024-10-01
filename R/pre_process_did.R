@@ -6,6 +6,9 @@
 #'
 #' @inheritParams att_gt
 #' @param call Function call to att_gt
+#' @param ... Can be used to pre-specify the ddml crossfitting folds by
+#'  passing the named argument \code{subsamples_byG} when
+#'  \code{est_method='ddml'}. Otherwise unused.
 #'
 #' @return a [`DIDparams`] object
 #'
@@ -175,15 +178,12 @@ pre_process_did <- function(yname,
     # Check for compatibility with other arguments
     if (!is.null(clustervars)) stop("Estimation using ddml is not supported when additional clustervars are specified.")
 
-    # Check whether learners were specified
+    # Check whether learners were specified, necessary for ddml estimation.
     args <- list(...)
     if (!"learners" %in% names(args))
       stop("Argument ``learners`` missing with no default. Estimation using ddml requires nuisance estimator specification.")
 
     # Computes crossfitting subsamples
-    # if (!"sample_folds" %in% names(args)) sample_folds = 10
-    # if (!"cv_folds" %in% names(args)) cv_folds = 10
-    # if (!"subsamples_byG" %in% names(args)) subsamples_byG = NULL
     ddml_subsamples <- get_ddml_samples(cluster_variable = data[, idname],
                                         G = data[, gname],
                                         ...)
@@ -398,8 +398,7 @@ get_ddml_samples <- function(cluster_variable, G,
     subsamples_byG <- rep(list(NULL), n_G_levels)
     for (g in 1:n_G_levels) {
       cluster_G <-  sort(unique(cluster_variable[G==G_levels[g]]))
-      tmp_subsamples <- ddml:::generate_subsamples(length(cluster_G),
-                                                   sample_folds)
+      tmp_subsamples <- generate_subsamples(length(cluster_G), sample_folds)
       subsamples_byG[[g]] <- lapply(tmp_subsamples, function (x) cluster_G[x])
     }#FOR
     names(subsamples_byG) <- G_levels
@@ -408,3 +407,13 @@ get_ddml_samples <- function(cluster_variable, G,
   # Return tuple of subsamples of clusters by group
   subsamples_byG
 }#GET_DDML_SAMPLES
+
+# Internal function to generate subsamples
+generate_subsamples <- function(nobs, sample_folds) {
+  sampleframe <- rep(1:sample_folds, ceiling(nobs/sample_folds))
+  sample_groups <- sample(sampleframe, size=nobs, replace=F)
+  subsamples <- sapply(1:sample_folds,
+                       function(x) {which(sample_groups == x)},
+                       simplify = F)
+  subsamples
+}#GENERATE_SUBSAMPLES

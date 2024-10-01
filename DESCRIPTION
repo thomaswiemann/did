@@ -29,4 +29,5 @@ Suggests:
     plm,
     here,
     knitr,
-    covr
+    covr,
+    ddml

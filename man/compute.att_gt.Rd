@@ -4,10 +4,14 @@
 \alias{compute.att_gt}
 \title{Compute Group-Time Average Treatment Effects}
 \usage{
-compute.att_gt(dp)
+compute.att_gt(dp, ...)
 }
 \arguments{
 \item{dp}{A DIDparams object}
+
+\item{...}{Additional arguments passed to \code{ddml_att}, used when
+\code{est_method='ddml'}. See \link[ddml:ddml_ate]{ddml::ddml_att} for a complete list of
+arguments.}
 }
 \value{
 a list with length equal to the number of groups times the
