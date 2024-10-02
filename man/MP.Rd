@@ -61,9 +61,10 @@ learner for every group and time period.}
 
 \item{reduced_forms}{When ddml estimation was used, returns the out-of-sample
 reduced form predictions for every group and time period. Note that the
-reduced forms for doubly-robust ATT estimation are $E\link{Y|D=0, X}$, $E\link{D|X}$,
-and $E\link{D}$. The \code{reduced_forms} object can also be populated by the
-user-specified est_method by returning a list element of the same name.}
+reduced forms for doubly-robust ATT estimation are \eqn{E[Y|D=0, X]},
+\eqn{E[D|X]}, and \eqn{E[D]}. The \code{reduced_forms} object can also be
+populated by the user-specified est_method by returning a list element of
+the same name.}
 }
 \value{
 MP object
