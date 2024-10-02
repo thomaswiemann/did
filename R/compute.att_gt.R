@@ -311,7 +311,8 @@ compute.att_gt <- function(dp, ...) {
 
           # 3. Organize results
           inf.func <- ddml_fit$psi_b + ddml_fit$att * ddml_fit$psi_a
-          attgt <- list(ATT = ddml_fit$att, att.inf.func = inf.func)
+          attgt <- list(ATT = ddml_fit$att, att.inf.func = inf.func,
+                        reduced_forms = ddml_fit$oos_pred)
 
         } else {
           # doubly robust, this is default
@@ -447,10 +448,13 @@ compute.att_gt <- function(dp, ...) {
 
       # save results for this att(g,t)
       attgt.list[[counter]] <- list(
-        att = attgt$ATT, group = glist[g], year = tlist[(t+tfac)], post = post.treat,
+        att = attgt$ATT,
+        group = glist[g],
+        year = tlist[(t+tfac)],
+        post = post.treat,
         ddml_fit = list(weights = ddml_fit$weights,
-                        mspe = ddml_fit$mspe,
-                        rf = ddml_fit$oos_pred)
+                        mspe = ddml_fit$mspe),
+        reduced_forms=attgt$reduced_forms
       )
 
 

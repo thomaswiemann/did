@@ -738,8 +738,8 @@ test_that("att_gt computes with ddml", {
   expect_identical(res$DIDparams$ddml_subsamples,
                    res2$DIDparams$ddml_subsamples)
   expect_equal(length(res$att), length(res2$att), 12)
-  expect_type(res$ddml_rf[[1]][[1]], "double")
-  expect_type(res2$ddml_rf[[1]][[1]], "double")
+  expect_type(res$reduced_forms[[1]][[1]], "double")
+  expect_type(res2$reduced_forms[[1]][[1]], "double")
   expect_type(res$ddml_weights[[1]][[1]], "NULL")
   expect_type(res2$ddml_weights[[1]][[1]], "double")
   expect_type(res$ddml_mspe[[1]][[1]], "NULL")

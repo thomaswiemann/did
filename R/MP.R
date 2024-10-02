@@ -23,18 +23,22 @@
 #' @param ddml_weights,ddml_mspe When ddml estimation used stacking, returns the
 #'  stacking weights and corresponding mean-square prediction errors of each
 #'  learner for every group and time period.
-#' @param ddml_rf When ddml estimation was used, returns the out-of-sample
-#'  reduced form predictions for every group and time period.
+#' @param reduced_forms When ddml estimation was used, returns the out-of-sample
+#'  reduced form predictions for every group and time period. Note that the
+#'  reduced forms for doubly-robust ATT estimation are $E[Y|D=0, X]$, $E[D|X]$,
+#'  and $E[D]$. The `reduced_forms` object can also be populated by the
+#'  user-specified est_method by returning a list element of the same name.
 #'
 #' @return MP object
 #' @export
 MP <- function(group, t, att, V_analytical, se, c, inffunc, n=NULL, W=NULL,
                Wpval=NULL, aggte=NULL, alp = 0.05, DIDparams=NULL,
-               ddml_weights=NULL, ddml_mspe=NULL, ddml_rf=NULL) {
+               ddml_weights=NULL, ddml_mspe=NULL, reduced_forms=NULL) {
   out <- list(group=group, t=t, att=att, V_analytical=V_analytical, se=se, c=c,
               inffunc=inffunc, n=n, W=W, Wpval=Wpval, aggte=aggte, alp = alp,
               DIDparams=DIDparams, ddml_weights=ddml_weights,
-              ddml_mspe=ddml_mspe, ddml_rf=ddml_rf, call=DIDparams$call)
+              ddml_mspe=ddml_mspe, reduced_forms=reduced_forms,
+              call=DIDparams$call)
   class(out) <- "MP"
   out
 }

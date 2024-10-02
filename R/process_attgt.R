@@ -17,7 +17,7 @@ process_attgt <- function(attgt.list) {
   att <- c()
   tt <- c()
   i <- 1
-  ddml_weights <- ddml_mspe <- ddml_rf <- rep(list(NULL), nG * nT)
+  ddml_weights <- ddml_mspe <- reduced_forms <- rep(list(NULL), nG * nT)
 
   # populate result vectors and matrices
   for (f in 1:nG) {
@@ -27,7 +27,7 @@ process_attgt <- function(attgt.list) {
       att[i] <- attgt.list[[i]]$att
       ddml_weights[[i]] <- attgt.list[[i]]$ddml_fit$weights
       ddml_mspe[[i]] <- attgt.list[[i]]$ddml_fit$mspe
-      ddml_rf[[i]] <- attgt.list[[i]]$ddml_fit$rf
+      reduced_forms[[i]] <- attgt.list[[i]]$reduced_forms
       i <- i+1
     }
   }
@@ -35,5 +35,5 @@ process_attgt <- function(attgt.list) {
   list(group=group, att=att, tt=tt,
        ddml_weights = ddml_weights,
        ddml_mspe = ddml_mspe,
-       ddml_rf = ddml_rf)
+       reduced_forms = reduced_forms)
 }

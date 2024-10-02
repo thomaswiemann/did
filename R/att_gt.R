@@ -354,6 +354,6 @@ att_gt <- function(yname,
             inffunc=inffunc, n=n, W=W, Wpval=Wpval, alp = alp, DIDparams=dp,
             ddml_weights = attgt.results$ddml_weights,
             ddml_mspe = attgt.results$ddml_mspe,
-            ddml_rf = attgt.results$ddml_rf))
+            reduced_forms = attgt.results$reduced_forms))
 
 }

@@ -20,7 +20,7 @@ MP(
   DIDparams = NULL,
   ddml_weights = NULL,
   ddml_mspe = NULL,
-  ddml_rf = NULL
+  reduced_forms = NULL
 )
 }
 \arguments{
@@ -59,8 +59,11 @@ of the call to \code{\link[=att_gt]{att_gt()}} or \code{\link[=conditional_did_p
 stacking weights and corresponding mean-square prediction errors of each
 learner for every group and time period.}
 
-\item{ddml_rf}{When ddml estimation was used, returns the out-of-sample
-reduced form predictions for every group and time period.}
+\item{reduced_forms}{When ddml estimation was used, returns the out-of-sample
+reduced form predictions for every group and time period. Note that the
+reduced forms for doubly-robust ATT estimation are $E\link{Y|D=0, X}$, $E\link{D|X}$,
+and $E\link{D}$. The \code{reduced_forms} object can also be populated by the
+user-specified est_method by returning a list element of the same name.}
 }
 \value{
 MP object
