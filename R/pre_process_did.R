@@ -175,6 +175,11 @@ pre_process_did <- function(yname,
   # Additional pre-processing if est_method == "ddml"
   ddml_subsamples <- NULL
   if (!inherits(est_method, "function") && est_method == "ddml") {
+    # Check whether ddml package is installed
+    if (!requireNamespace("ddml", quietly=TRUE)) {
+      stop("The 'ddml' package is not installed. Run ``install.packages('ddml')`` and try again.")
+    }#IF
+
     # Check for compatibility with other arguments
     if (!is.null(clustervars)) stop("Estimation using ddml is not supported when additional clustervars are specified.")
 
