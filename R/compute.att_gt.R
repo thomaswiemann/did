@@ -309,10 +309,43 @@ compute.att_gt <- function(dp, ...) {
                                             subsamples_byD = subsamples_byD),
                                        args[which_args]))
 
-          # 3. Organize results
+          # 3. Calibrate RR
+          att <- ddml_fit$att
           inf.func <- ddml_fit$psi_b + ddml_fit$att * ddml_fit$psi_a
-          attgt <- list(ATT = ddml_fit$att, att.inf.func = inf.func,
-                        reduced_forms = ddml_fit$oos_pred)
+          calibration_factor <- NULL
+          if (isTRUE(args$calibrate)) {
+            y <- Ypost - Ypre
+            EY_D0_X <- ddml_fit$oos_pred$EY_D0_X
+            ED_X <- ddml_fit$oos_pred$ED_X
+            trim <- if (!is.null(args$trim)) args$trim else 0.01
+            ED_X <- pmax(pmin(ED_X, 1 - trim), trim)
+            ED <- ddml_fit$oos_pred$ED
+            # define derivative of IPW: m1
+            m1 <- -((1-G) * y / ED) * (1/(1-ED_X) + ED_X/(1-ED_X)^2)
+            # define correction term RR
+            alpha1 <- -(1/ED) * (ED_X * EY_D0_X / (1-ED_X) + EY_D0_X)
+            # compute empirical analog of E[alpha^2] = E[m1 * alpha]
+            c1 <- mean(alpha1^2, na.rm = TRUE)
+            c2 <- mean(m1 * alpha1, na.rm = TRUE)
+            # calibrate RR
+            alpha1_cal <- alpha1 * c2 / c1
+            # recompute score with calibrated RR
+            psi_ipw <- (G * y / ED) - (ED_X * (1-G) * y) / (ED * (1-ED_X))
+            psi_correction <- alpha1_cal * (G - ED_X)
+            psi_b <- psi_ipw + psi_correction
+            psi_a <- -G / ED
+            att <- -mean(psi_b) / mean(psi_a)
+            inf.func <- psi_b + att * psi_a
+            calibration_factor <- c2 / c1
+            if (!is.finite(att)) {
+              warning(paste0("Calibration produced non-finite ATT for group ", glist[g], " in time period ", tlist[(t+tfac)]))
+            }
+          }#IF
+
+          # 4. Organize results
+          attgt <- list(ATT = att, att.inf.func = inf.func,
+                        reduced_forms = c(ddml_fit$oos_pred,
+                                          list(calibration_factor = calibration_factor)))
 
         } else {
           # doubly robust, this is default

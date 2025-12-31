@@ -20,9 +20,10 @@
 #' @param alp the significance level, default is 0.05
 #' @param DIDparams a [`DIDparams`] object.  A way to optionally return the parameters
 #'  of the call to [att_gt()] or [conditional_did_pretest()].
-#' @param ddml_weights,ddml_mspe When ddml estimation used stacking, returns the
-#'  stacking weights and corresponding mean-square prediction errors of each
-#'  learner for every group and time period.
+#' @param ddml_weights,ddml_mspe,ddml_calibration_factor When ddml estimation
+#'  used stacking, returns the stacking weights, corresponding mean-square
+#'  prediction errors, and calibration factor of each learner for every group
+#'  and time period.
 #' @param reduced_forms When ddml estimation was used, returns the out-of-sample
 #'  reduced form predictions for every group and time period. Note that the
 #'  reduced forms for doubly-robust ATT estimation are \eqn{E[Y|D=0, X]},
@@ -34,11 +35,13 @@
 #' @export
 MP <- function(group, t, att, V_analytical, se, c, inffunc, n=NULL, W=NULL,
                Wpval=NULL, aggte=NULL, alp = 0.05, DIDparams=NULL,
-               ddml_weights=NULL, ddml_mspe=NULL, reduced_forms=NULL) {
+               ddml_weights=NULL, ddml_mspe=NULL, ddml_calibration_factor=NULL,
+               reduced_forms=NULL) {
   out <- list(group=group, t=t, att=att, V_analytical=V_analytical, se=se, c=c,
               inffunc=inffunc, n=n, W=W, Wpval=Wpval, aggte=aggte, alp = alp,
               DIDparams=DIDparams, ddml_weights=ddml_weights,
-              ddml_mspe=ddml_mspe, reduced_forms=reduced_forms,
+              ddml_mspe=ddml_mspe, ddml_calibration_factor=ddml_calibration_factor,
+              reduced_forms=reduced_forms,
               call=DIDparams$call)
   class(out) <- "MP"
   out
