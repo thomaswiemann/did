@@ -41,6 +41,7 @@ articles:
     - TWFE
     - pre-testing
     - extensions
+    - did-ddml
 
 reference:
   - title: "Difference-in-Differences Methods"
