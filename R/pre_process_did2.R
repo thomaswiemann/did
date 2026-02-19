@@ -564,7 +564,8 @@ pre_process_did2 <- function(yname,
                             faster_mode=FALSE,
                             pl = FALSE,
                             cores = 1,
-                            call = NULL) {
+                            call = NULL,
+                            ...) {
 
 
   # coerce data to data.table first
@@ -573,8 +574,12 @@ pre_process_did2 <- function(yname,
   }
 
   # gathering all the arguments except data
-  args_names <- setdiff(names(formals()), "data")
+  args_names <- setdiff(names(formals()), c("data", "..."))
   args <- mget(args_names, sys.frame(sys.nframe()))
+
+  # capture extra arguments passed via ...
+  extra_args <- list(...)
+  args$extra_args <- extra_args
 
   # pick a control_group by default
   args$control_group <- control_group[1]
@@ -603,6 +608,17 @@ pre_process_did2 <- function(yname,
 
   # Partition staggered DiD into a 2x2 DiD for faster implementation
   did_tensors <- get_did_tensors(cleaned_did$data, cleaned_did$args)
+
+  # compute crossfit subsamples if num_folds is specified
+  if (!is.null(extra_args$num_folds)) {
+    G_var <- cleaned_did$data[[gname]]
+    cluster_var <- if (!is.null(clustervars)) cleaned_did$data[[clustervars]] else seq_len(nrow(cleaned_did$data))
+    cleaned_did$args$crossfit_subsamples <- get_crossfit_subsamples(
+      cluster_variable = cluster_var,
+      G = G_var,
+      num_folds = extra_args$num_folds
+    )
+  }
 
   # store parameters for passing around later
   dp <- DIDparams2(did_tensors, cleaned_did$args, call=call)

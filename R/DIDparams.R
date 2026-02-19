@@ -43,6 +43,7 @@ DIDparams <- function(yname,
                    nT=NULL,
                    tlist=NULL,
                    glist=NULL,
+                   crossfit_subsamples=NULL,
                    call=NULL) {
 
   out <- list(yname=yname,
@@ -72,6 +73,7 @@ DIDparams <- function(yname,
               nT=nT,
               tlist=tlist,
               glist=glist,
+              crossfit_subsamples=crossfit_subsamples,
               call=call)
   class(out) <- "DIDparams"
   out

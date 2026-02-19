@@ -89,6 +89,7 @@ DIDparams2 <- function(did_tensors, args, call=NULL) {
               covariates_matrix = covariates_matrix,
               cluster_vector=cluster_vector,
               weights_vector=weights_vector,
+              crossfit_subsamples=args$crossfit_subsamples,
               call=call)
   class(out) <- "DIDparams"
   return(out)

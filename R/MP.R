@@ -23,10 +23,10 @@
 #'
 #' @return MP object
 #' @export
-MP <- function(group, t, att, V_analytical, se, c, inffunc, n=NULL, W=NULL, Wpval=NULL, aggte=NULL, alp = 0.05, DIDparams=NULL) {
+MP <- function(group, t, att, V_analytical, se, c, inffunc, n=NULL, W=NULL, Wpval=NULL, aggte=NULL, alp = 0.05, DIDparams=NULL, extras=NULL) {
   out <- list(group=group, t=t, att=att, V_analytical=V_analytical, se=se, c=c,
   inffunc=inffunc, n=n, W=W, Wpval=Wpval, aggte=aggte, alp = alp,
-  DIDparams=DIDparams, call=DIDparams$call)
+  DIDparams=DIDparams, call=DIDparams$call, extras=extras)
   class(out) <- "MP"
   out
 }

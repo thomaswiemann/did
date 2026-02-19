@@ -201,7 +201,8 @@ att_gt <- function(yname,
                    faster_mode = TRUE,
                    print_details = FALSE,
                    pl = FALSE,
-                   cores = 1) {
+                   cores = 1,
+                   ...) {
   # Check if user wants to run faster mode:
   if (faster_mode) {
     # this is a DIDparams2 object
@@ -228,13 +229,19 @@ att_gt <- function(yname,
       faster_mode = faster_mode,
       pl = pl,
       cores = cores,
-      call = match.call()
+      call = match.call(),
+      ...
     )
 
     #-----------------------------------------------------------------------------
     # Compute all ATT(g,t)
     #-----------------------------------------------------------------------------
-    results <- compute.att_gt2(dp)
+    # inject crossfit_subsamples into ... if available
+    if (!is.null(dp$crossfit_subsamples)) {
+      results <- compute.att_gt2(dp, crossfit_subsamples=dp$crossfit_subsamples, ...)
+    } else {
+      results <- compute.att_gt2(dp, ...)
+    }
   } else {
     # this is a DIDparams object
     dp <- pre_process_did(
@@ -259,13 +266,19 @@ att_gt <- function(yname,
       print_details = print_details,
       pl = pl,
       cores = cores,
-      call = match.call()
+      call = match.call(),
+      ...
     )
 
     #-----------------------------------------------------------------------------
     # Compute all ATT(g,t)
     #-----------------------------------------------------------------------------
-    results <- compute.att_gt(dp)
+    # inject crossfit_subsamples into ... if available
+    if (!is.null(dp$crossfit_subsamples)) {
+      results <- compute.att_gt(dp, crossfit_subsamples=dp$crossfit_subsamples, ...)
+    } else {
+      results <- compute.att_gt(dp, ...)
+    }
   }
 
   # extract ATT(g,t) and influence functions
@@ -409,6 +422,13 @@ att_gt <- function(yname,
   }
 
 
+  # collect any extra fields from est_method results
+  standard_fields <- c("att", "group", "year", "post", "inffunc_updates")
+  extras <- lapply(attgt.list, function(x) x[setdiff(names(x), standard_fields)])
+  # drop empty extras
+  has_extras <- any(sapply(extras, function(x) length(x) > 0))
+  if (!has_extras) extras <- NULL
+
   # Return this list
-  return(MP(group = group, t = tt, att = att, V_analytical = V, se = se, c = cval, inffunc = inffunc, n = n, W = W, Wpval = Wpval, alp = alp, DIDparams = dp))
+  return(MP(group = group, t = tt, att = att, V_analytical = V, se = se, c = cval, inffunc = inffunc, n = n, W = W, Wpval = Wpval, alp = alp, DIDparams = dp, extras = extras))
 }

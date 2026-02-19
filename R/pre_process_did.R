@@ -32,7 +32,8 @@ pre_process_did <- function(yname,
                             faster_mode = FALSE,
                             pl = FALSE,
                             cores = 1,
-                            call = NULL) {
+                            call = NULL,
+                            ...) {
   #-----------------------------------------------------------------------------
   # Data pre-processing and error checking
   #-----------------------------------------------------------------------------
@@ -375,6 +376,19 @@ pre_process_did <- function(yname,
   # order dataset wrt idname and tname
   data <- data[order(data[,idname], data[,tname]),]
 
+  # compute crossfit subsamples if num_folds is specified via ...
+  extra_args <- list(...)
+  crossfit_subsamples <- NULL
+  if (!is.null(extra_args$num_folds)) {
+    G_var <- data[, gname]
+    cluster_var <- if (!is.null(clustervars)) data[, clustervars] else seq_len(nrow(data))
+    crossfit_subsamples <- get_crossfit_subsamples(
+      cluster_variable = cluster_var,
+      G = G_var,
+      num_folds = extra_args$num_folds
+    )
+  }
+
   # store parameters for passing around later
   dp <- DIDparams(yname=yname,
                   tname=tname,
@@ -403,5 +417,6 @@ pre_process_did <- function(yname,
                   nT=nT,
                   tlist=tlist,
                   glist=glist,
+                  crossfit_subsamples=crossfit_subsamples,
                   call=call)
 }

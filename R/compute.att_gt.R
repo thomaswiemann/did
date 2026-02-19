@@ -15,7 +15,8 @@
 #' @keywords internal
 #'
 #' @export
-compute.att_gt <- function(dp) {
+# ... forwarded from att_gt(); only passed to custom est_method functions
+compute.att_gt <- function(dp, ...) {
   #-----------------------------------------------------------------------------
   # unpack DIDparams
   #-----------------------------------------------------------------------------
@@ -243,13 +244,14 @@ compute.att_gt <- function(dp) {
         #-----------------------------------------------------------------------------
 
         if (inherits(est_method, "function")) {
-          # user-specified function
+          # user-specified function: forward ... (e.g. crossfit_subsamples)
           attgt <- est_method(
             y1 = Ypost, y0 = Ypre,
             D = G,
             covariates = covariates,
             i.weights = w,
-            inffunc = TRUE
+            inffunc = TRUE,
+            ...
           )
         } else if (est_method == "ipw") {
           # inverse-probability weights
@@ -350,14 +352,15 @@ compute.att_gt <- function(dp) {
         #-----------------------------------------------------------------------------
 
         if (inherits(est_method, "function")) {
-          # user-specified function
+          # user-specified function: forward ... (e.g. crossfit_subsamples)
           attgt <- est_method(
             y = Y,
             post = post,
             D = G,
             covariates = covariates,
             i.weights = w,
-            inffunc = TRUE
+            inffunc = TRUE,
+            ...
           )
         } else if (est_method == "ipw") {
           # inverse-probability weights
@@ -404,8 +407,10 @@ compute.att_gt <- function(dp) {
       } # end panel if
 
       # save results for this att(g,t)
-      attgt.list[[counter]] <- list(
-        att = attgt$ATT, group = glist[g], year = tlist[(t + tfac)], post = post.treat
+      extra_fields <- attgt[setdiff(names(attgt), c("ATT", "att.inf.func"))]
+      attgt.list[[counter]] <- c(
+        list(att = attgt$ATT, group = glist[g], year = tlist[(t + tfac)], post = post.treat),
+        extra_fields
       )
 
 

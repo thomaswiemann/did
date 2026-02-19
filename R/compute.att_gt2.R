@@ -78,7 +78,9 @@ get_did_cohort_index <- function(group, time, tfac, pret, dp2){
 #'
 #' @return Time period indicating the pre treatment period.
 #' @noRd
-run_DRDID <- function(cohort_data, covariates, dp2){
+# ... forwarded from att_gt() (incl. crossfit_subsamples) through to custom est_method;
+# only passed to custom est_method functions (built-in methods ignore ...)
+run_DRDID <- function(cohort_data, covariates, dp2, ...){
 
   if(dp2$panel){
     # --------------------------------------
@@ -108,13 +110,14 @@ run_DRDID <- function(cohort_data, covariates, dp2){
 
 
     if (inherits(dp2$est_method, "function")) {
-      # user-specified function
+      # user-specified function: forward ... (e.g. crossfit_subsamples)
       attgt <- dp2$est_method(y1=cohort_data[, y1],
                           y0=cohort_data[, y0],
                           D=cohort_data[, D],
                           covariates=covariates,
                           i.weights=cohort_data[, i.weights],
-                          inffunc=TRUE)
+                          inffunc=TRUE,
+                          ...)
     } else if (dp2$est_method == "ipw") {
       # inverse-probability weights
       attgt <- std_ipw_did_panel(y1=cohort_data[, y1],
@@ -147,6 +150,9 @@ run_DRDID <- function(cohort_data, covariates, dp2){
     inf_func_not_na <- (n/n1)*attgt$att.inf.func
     inf_func_vector[valid_obs] <- inf_func_not_na
 
+    # collect extra fields from est_method return
+    extra_fields <- attgt[setdiff(names(attgt), c("ATT", "att.inf.func"))]
+
   } else {
     # --------------------------------------
     # Repeated Cross-Section
@@ -178,13 +184,14 @@ run_DRDID <- function(cohort_data, covariates, dp2){
     #-----------------------------------------------------------------------------
 
     if (inherits(dp2$est_method, "function")) {
-      # user-specified function
+      # user-specified function: forward ... (e.g. crossfit_subsamples)
       attgt <- dp2$est_method(y=cohort_data[, y],
                           post=cohort_data[, post],
                           D=cohort_data[, D],
                           covariates=covariates,
                           i.weights=cohort_data[, i.weights],
-                          inffunc=TRUE)
+                          inffunc=TRUE,
+                          ...)
     } else if (dp2$est_method == "ipw") {
       # inverse-probability weights
       attgt <- std_ipw_did_rc(y=cohort_data[, y],
@@ -232,7 +239,12 @@ run_DRDID <- function(cohort_data, covariates, dp2){
 
   }
 
-  return(list(att = attgt$ATT, inf_func = inf_func_vector))
+  # collect extra fields from est_method return (RC path)
+  if (!exists("extra_fields")) {
+    extra_fields <- attgt[setdiff(names(attgt), c("ATT", "att.inf.func"))]
+  }
+
+  return(c(list(att = attgt$ATT, inf_func = inf_func_vector), extra_fields))
 
 }
 
@@ -248,7 +260,7 @@ run_DRDID <- function(cohort_data, covariates, dp2){
 #' @return a list with the gt cell and the results after performing estimation
 #'
 #' @keywords internal
-run_att_gt_estimation <- function(g, t, dp2){
+run_att_gt_estimation <- function(g, t, dp2, ...){
 
   if(dp2$print_details){cat("\n", paste0("Evaluating (g,t) = (",dp2$treated_groups[g],",",dp2$time_periods[t],")"))}
   tfac <- ifelse(dp2$base_period != "universal", 1, 0)
@@ -315,7 +327,7 @@ run_att_gt_estimation <- function(g, t, dp2){
   }
 
   # run estimation
-  did_result <- tryCatch(run_DRDID(cohort_data, covariates, dp2),
+  did_result <- tryCatch(run_DRDID(cohort_data, covariates, dp2, ...),
                          error = function(e) {
                            warning("\n Error in computing internal 2x2 DiD for (g,t) = (",dp2$treated_groups[g],",",dp2$time_periods[t],"): ", e$message)
                            return(NULL)
@@ -340,7 +352,7 @@ run_att_gt_estimation <- function(g, t, dp2){
 #'
 #' @keywords internal
 #' @export
-compute.att_gt2 <- function(dp2) {
+compute.att_gt2 <- function(dp2, ...) {
 
   n <- dp2$id_count  # Total number of units
   time_periods <- dp2$time_periods # tlist
@@ -362,7 +374,7 @@ compute.att_gt2 <- function(dp2) {
     t <- gt_cell$t
 
     # Run estimation
-    gt_result <- run_att_gt_estimation(g, t, dp2)
+    gt_result <- run_att_gt_estimation(g, t, dp2, ...)
 
     # Compute post-treatment indicator
     post.treat <- as.integer(g <= t)
@@ -390,9 +402,10 @@ compute.att_gt2 <- function(dp2) {
         inf_func <- rep(0, n)
       }
 
-      # Save ATT and influence function
+      # Save ATT and influence function, plus any extra fields
       inffunc_updates <- inf_func
-      gt_result <- list(att = att, group = dp2$treated_groups[g], year = dp2$time_periods[t+tfac], post = post.treat, inffunc_updates = inffunc_updates)
+      extra_fields <- gt_result[setdiff(names(gt_result), c("att", "inf_func"))]
+      gt_result <- c(list(att = att, group = dp2$treated_groups[g], year = dp2$time_periods[t+tfac], post = post.treat, inffunc_updates = inffunc_updates), extra_fields)
       return(gt_result)
     }
   }
