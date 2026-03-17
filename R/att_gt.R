@@ -509,13 +509,9 @@ att_gt <- function(yname,
   }
 
 
-  # Build the MP object
-  out <- MP(group = group, t = tt, att = att, V_analytical = V, se = se, c = cval, inffunc = inffunc, n = n, W = W, Wpval = Wpval, alp = alp, DIDparams = dp)
-
-  # Attach per-(g,t) extra outputs from custom est_method (if any)
-  extras <- lapply(attgt.list, function(x) x$extra)
-  has_extras <- any(!vapply(extras, is.null, logical(1)))
-  if (has_extras) out$extra_gt <- extras
-
-  return(out)
+  # Build the MP object, append extra_gt results form est_method calls if any
+  extra_gt <- Filter(Negate(is.null), lapply(attgt.list, function(x) x$extra))
+  MP(group = group, t = tt, att = att, V_analytical = V, se = se, c = cval,
+     inffunc = inffunc, n = n, W = W, Wpval = Wpval, alp = alp,
+     DIDparams = dp, extra_gt = if (length(extra_gt)) extra_gt)
 }
