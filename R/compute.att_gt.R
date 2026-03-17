@@ -508,15 +508,11 @@ compute.att_gt <- function(dp) {
       } # end panel if
 
       # save results for this att(g,t)
-      attgt_entry <- list(
-        att = attgt$ATT, group = glist[g], year = tlist[(t + tfac)], post = post.treat
+      extra <- if (custom_est_method) attgt[!names(attgt) %in% c("ATT", "att.inf.func")] else NULL
+      if (!length(extra)) extra <- NULL
+      attgt.list[[counter]] <- list(
+        att = attgt$ATT, group = glist[g], year = tlist[(t + tfac)], post = post.treat, extra = extra
       )
-      # preserve extra fields from custom est_method only
-      if (custom_est_method) {
-        extra <- attgt[!names(attgt) %in% c("ATT", "att.inf.func")]
-        if (length(extra) > 0) attgt_entry$extra <- extra
-      }
-      attgt.list[[counter]] <- attgt_entry
 
 
       # populate the influence function in the right places

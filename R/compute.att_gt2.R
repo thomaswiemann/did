@@ -524,10 +524,8 @@ compute.att_gt2 <- function(dp2) {
 
       # Save ATT and influence function
       inffunc_updates <- inf_func
-      gt_result_out <- list(att = att, group = dp2$treated_groups[g], year = dp2$time_periods[t+tfac], post = post.treat, inffunc_updates = inffunc_updates)
-      # preserve extra outputs from custom est_method
-      if (!is.null(gt_result$extra)) gt_result_out$extra <- gt_result$extra
-      return(gt_result_out)
+      gt_result <- list(att = att, group = dp2$treated_groups[g], year = dp2$time_periods[t+tfac], post = post.treat, inffunc_updates = inffunc_updates, extra = gt_result$extra)
+      return(gt_result)
     }
   }
 
