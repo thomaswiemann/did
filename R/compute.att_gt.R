@@ -257,6 +257,12 @@ compute.att_gt <- function(dp) {
               i.weights = w,
               inffunc = TRUE
             )
+            # forward cell identity if est_method can accept it
+            fmls <- names(formals(est_method))
+            if ("g" %in% fmls) {
+              base_args$g <- glist[g]
+              base_args$t <- tlist[(t + tfac)]
+            }
             # add passthrough variables if specified
             if (!is.null(est_method_vars)) {
               base_args$data <- disdat[, est_method_vars, with = FALSE]
@@ -430,6 +436,12 @@ compute.att_gt <- function(dp) {
               i.weights = w,
               inffunc = TRUE
             )
+            # forward cell identity if est_method can accept it
+            fmls <- names(formals(est_method))
+            if ("g" %in% fmls) {
+              base_args$g <- glist[g]
+              base_args$t <- tlist[(t + tfac)]
+            }
             # add passthrough variables if specified
             if (!is.null(est_method_vars)) {
               base_args$data <- disdat[, est_method_vars, with = FALSE]

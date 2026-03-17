@@ -158,6 +158,12 @@ run_DRDID <- function(cohort_data, covariates, dp2, g_val = NULL, t_val = NULL){
         covariates=covariates,
         i.weights=cohort_data[, i.weights],
         inffunc=TRUE)
+      # forward cell identity if est_method can accept it
+      fmls <- names(formals(dp2$est_method))
+      if ("g" %in% fmls) {
+        base_args$g <- g_val
+        base_args$t <- t_val
+      }
       # add passthrough variables if specified
       if (!is.null(est_method_vars)) {
         base_args$data <- dp2$time_invariant_data[valid_obs, est_method_vars, with = FALSE]
@@ -265,6 +271,12 @@ run_DRDID <- function(cohort_data, covariates, dp2, g_val = NULL, t_val = NULL){
         covariates=covariates,
         i.weights=cohort_data[, i.weights],
         inffunc=TRUE)
+      # forward cell identity if est_method can accept it
+      fmls <- names(formals(dp2$est_method))
+      if ("g" %in% fmls) {
+        base_args$g <- g_val
+        base_args$t <- t_val
+      }
       # add passthrough variables if specified
       if (!is.null(est_method_vars)) {
         base_args$data <- dp2$time_invariant_data[valid_obs, est_method_vars, with = FALSE]
