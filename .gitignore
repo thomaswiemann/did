@@ -17,3 +17,5 @@ did.Rproj
 .vscode/
 .revdep_manual/
 vignettes/*_cache/
+/.discussions
+GEMINI.md

@@ -91,6 +91,7 @@ get_did_cohort_index <- function(group, time, tfac, pret, dp2){
 run_DRDID <- function(cohort_data, covariates, dp2, g_val = NULL, t_val = NULL){
 
   extra_args <- if (is.null(dp2$extra_args)) list() else dp2$extra_args
+  est_method_vars <- dp2$est_method_vars
   gt_label <- if (!is.null(g_val) && !is.null(t_val)) paste0(" for group ", g_val, " in time period ", t_val) else ""
 
   if(dp2$panel){
@@ -150,13 +151,18 @@ run_DRDID <- function(cohort_data, covariates, dp2, g_val = NULL, t_val = NULL){
 
     if (inherits(dp2$est_method, "function")) {
       # user-specified function
-      attgt <- do.call(dp2$est_method, c(list(
-                          y1=cohort_data[, y1],
-                          y0=cohort_data[, y0],
-                          D=cohort_data[, D],
-                          covariates=covariates,
-                          i.weights=cohort_data[, i.weights],
-                          inffunc=TRUE), extra_args))
+      base_args <- list(
+        y1=cohort_data[, y1],
+        y0=cohort_data[, y0],
+        D=cohort_data[, D],
+        covariates=covariates,
+        i.weights=cohort_data[, i.weights],
+        inffunc=TRUE)
+      # add passthrough variables if specified
+      if (!is.null(est_method_vars)) {
+        base_args$data <- dp2$time_invariant_data[valid_obs, est_method_vars, with = FALSE]
+      }
+      attgt <- do.call(dp2$est_method, c(base_args, extra_args))
     } else if (dp2$est_method == "ipw") {
       # inverse-probability weights
       attgt <- std_ipw_did_panel(y1=cohort_data[, y1],
@@ -252,13 +258,18 @@ run_DRDID <- function(cohort_data, covariates, dp2, g_val = NULL, t_val = NULL){
 
     if (inherits(dp2$est_method, "function")) {
       # user-specified function
-      attgt <- do.call(dp2$est_method, c(list(
-                          y=cohort_data[, y],
-                          post=cohort_data[, post],
-                          D=cohort_data[, D],
-                          covariates=covariates,
-                          i.weights=cohort_data[, i.weights],
-                          inffunc=TRUE), extra_args))
+      base_args <- list(
+        y=cohort_data[, y],
+        post=cohort_data[, post],
+        D=cohort_data[, D],
+        covariates=covariates,
+        i.weights=cohort_data[, i.weights],
+        inffunc=TRUE)
+      # add passthrough variables if specified
+      if (!is.null(est_method_vars)) {
+        base_args$data <- dp2$time_invariant_data[valid_obs, est_method_vars, with = FALSE]
+      }
+      attgt <- do.call(dp2$est_method, c(base_args, extra_args))
     } else if (dp2$est_method == "ipw") {
       # inverse-probability weights
       attgt <- std_ipw_did_rc(y=cohort_data[, y],
@@ -306,7 +317,13 @@ run_DRDID <- function(cohort_data, covariates, dp2, g_val = NULL, t_val = NULL){
 
   }
 
-  return(list(att = attgt$ATT, inf_func = inf_func_vector))
+  result <- list(att = attgt$ATT, inf_func = inf_func_vector)
+  # forward extra fields from custom est_method (if any)
+  if (custom_est_method) {
+    extra <- attgt[!names(attgt) %in% c("ATT", "att.inf.func")]
+    if (length(extra) > 0) result$extra <- extra
+  }
+  return(result)
 
 }
 
@@ -495,8 +512,10 @@ compute.att_gt2 <- function(dp2) {
 
       # Save ATT and influence function
       inffunc_updates <- inf_func
-      gt_result <- list(att = att, group = dp2$treated_groups[g], year = dp2$time_periods[t+tfac], post = post.treat, inffunc_updates = inffunc_updates)
-      return(gt_result)
+      gt_result_out <- list(att = att, group = dp2$treated_groups[g], year = dp2$time_periods[t+tfac], post = post.treat, inffunc_updates = inffunc_updates)
+      # preserve extra outputs from custom est_method
+      if (!is.null(gt_result$extra)) gt_result_out$extra <- gt_result$extra
+      return(gt_result_out)
     }
   }
 

@@ -26,6 +26,7 @@ compute.att_gt <- function(dp) {
   xformla <- dp$xformla
   weightsname <- dp$weightsname
   est_method <- dp$est_method
+  est_method_vars <- dp$est_method_vars
   extra_args <- if (is.null(dp$extra_args)) list() else dp$extra_args
   base_period <- dp$base_period
   panel <- dp$panel
@@ -249,13 +250,18 @@ compute.att_gt <- function(dp) {
         attgt <- tryCatch({
           if (inherits(est_method, "function")) {
             # user-specified function
-            res <- do.call(est_method, c(list(
+            base_args <- list(
               y1 = Ypost, y0 = Ypre,
               D = G,
               covariates = covariates,
               i.weights = w,
               inffunc = TRUE
-            ), extra_args))
+            )
+            # add passthrough variables if specified
+            if (!is.null(est_method_vars)) {
+              base_args$data <- disdat[, est_method_vars, with = FALSE]
+            }
+            res <- do.call(est_method, c(base_args, extra_args))
           } else if (est_method == "ipw") {
             # inverse-probability weights
             res <- DRDID::std_ipw_did_panel(Ypost, Ypre, G,
@@ -416,14 +422,19 @@ compute.att_gt <- function(dp) {
         attgt <- tryCatch({
           if (inherits(est_method, "function")) {
             # user-specified function
-            res <- do.call(est_method, c(list(
+            base_args <- list(
               y = Y,
               post = post,
               D = G,
               covariates = covariates,
               i.weights = w,
               inffunc = TRUE
-            ), extra_args))
+            )
+            # add passthrough variables if specified
+            if (!is.null(est_method_vars)) {
+              base_args$data <- disdat[, est_method_vars, with = FALSE]
+            }
+            res <- do.call(est_method, c(base_args, extra_args))
           } else if (est_method == "ipw") {
             # inverse-probability weights
             res <- DRDID::std_ipw_did_rc(
@@ -485,9 +496,15 @@ compute.att_gt <- function(dp) {
       } # end panel if
 
       # save results for this att(g,t)
-      attgt.list[[counter]] <- list(
+      attgt_entry <- list(
         att = attgt$ATT, group = glist[g], year = tlist[(t + tfac)], post = post.treat
       )
+      # preserve extra fields from custom est_method only
+      if (custom_est_method) {
+        extra <- attgt[!names(attgt) %in% c("ATT", "att.inf.func")]
+        if (length(extra) > 0) attgt_entry$extra <- extra
+      }
+      attgt.list[[counter]] <- attgt_entry
 
 
       # populate the influence function in the right places
