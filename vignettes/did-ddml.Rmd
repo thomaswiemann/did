@@ -1,0 +1,382 @@
+---
+title: "Difference-in-Differences with Double/Debiased Machine Learning"
+author: "Thomas Wiemann"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Difference-in-Differences with Double/Debiased Machine Learning}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+has_ddml <- requireNamespace("ddml", quietly = TRUE)
+```
+
+## Introduction
+
+This vignette illustrates implementation of a staggered difference-in-differences (DiD) estimator using double/debiased machine learning (DML). Instead of relying on ad-hoc parametric nuisance estimators, this DiD-DML estimator leverages machine learning to flexibly control for covariates.
+
+The key implementation approach is simple: the `att_gt` function allows users to pass a custom estimation method via the `est_method` argument.  Any additional arguments passed to `att_gt(...)` are forwarded to the custom function via `...`, making it straightforward to pass learner configurations, cross-fitting parameters, and other options.
+
+The vignette also demonstrates two features of `att_gt` that enable clean integration with `ddml`:
+
+- **`est_method_vars`**: passes additional variables (e.g., pre-computed fold assignments) from the original data to the custom estimation function, enabling consistent cross-fitting across group-time cells.
+- **`extra_gt`**: captures additional outputs from the custom estimation function for each group-time cell, which we use to store the full `ddml` fit objects for diagnostics and re-estimation.
+
+For a detailed discussion of the relevant asymptotic theory for DiD-DML estimators see Chang (2020). Ahrens et al. (2025) provide an introduction to DML along with an empirical example in the staggered DiD setting.
+
+
+## Baseline: The Default Linear Estimator
+
+Consider the data of Callaway and Sant'Anna (2021) on county-level teen employment rates from 2003--2007.  We are interested in the effect of treatment on the log-employment rate `lemp` and assume that parallel trends holds conditional on county population (`lpop`).
+
+```{r data}
+library(did)
+set.seed(588239)
+data(mpdta)
+head(mpdta)
+```
+
+By default, `att_gt` controls *linearly* for covariates (logistic propensity score, linear outcome regression):
+
+```{r default}
+attgt_lm <- att_gt(yname = "lemp",
+                   gname = "first.treat",
+                   idname = "countyreal",
+                   tname = "year",
+                   xformla = ~lpop,
+                   data = mpdta)
+summary(attgt_lm)
+```
+
+```{r default_dyn, fig.width=8, fig.height=5, fig.align='center', out.width="90%", dpi = 200}
+dyn_lm <- aggte(attgt_lm, type = "dynamic")
+summary(dyn_lm)
+ggdid(dyn_lm, ylim = c(-.4, .4))
+```
+
+Without additional *parametric* functional form assumptions on the nuisance functions, it is *not* guaranteed that the above estimator returns a convex combination of causal effects.  An important robustness check is therefore to verify whether the results hold up when using *nonparametric* nuisance estimators.
+
+
+## A `ddml`-based Wrapper for `att_gt`
+
+The [**ddml**](https://thomaswiemann.com/ddml/) package facilitates the use of a large set of machine learning nuisance estimators in a DML framework, including simultaneous consideration of multiple estimators via (short-)stacking.
+
+To use **ddml** estimators with `att_gt`, we pass a custom function via `est_method`.  The wrapper adapts `ddml_att` to the interface expected by `att_gt`:
+
+```{r ddml_wrapper, eval = has_ddml}
+library(ddml)
+
+ddml_did_method <- function(y1, y0, D, covariates, i.weights, inffunc,
+                            data = NULL, ...) {
+  delta_y <- y1 - y0
+
+  # Build ddml-compatible splits from the pre-assigned fold_id column.
+  # We supply the overall fold indices via D_X; ddml auto-derives the
+  # D-stratified subsamples by intersecting with D==0 and D==1 indices.
+  fold_id <- data[["fold_id"]]
+  K <- max(fold_id)
+  subsamples <- lapply(seq_len(K), function(k) which(fold_id == k))
+  splits <- list(
+    D_X = list(subsamples = subsamples, cv_subsamples = NULL),
+    y_X_D0 = list(subsamples = NULL, cv_subsamples = NULL),
+    y_X_D1 = list(subsamples = NULL, cv_subsamples = NULL)
+  )
+
+  att_fit <- do.call(ddml_att, c(list(y = delta_y, D = D, X = covariates,
+                                      splits = splits), list(...)))
+
+  # ddml stores the evaluated Neyman-orthogonal score in a 3D array
+  # scores[n_obs, 1, n_ensemble_types]; scores[, 1, 1] extracts the
+  # n-vector of influence function values for the first ensemble type
+  list(ATT = coef(att_fit),
+       att.inf.func = att_fit$scores[, 1, 1],
+       ddml_fit = att_fit)
+}
+```
+
+Two implementation notes:
+
+1. **Fold consistency via `est_method_vars`:**  The wrapper reads `fold_id` from the `data` argument (passed via `est_method_vars`) and constructs `ddml`-compatible `splits`.  This ensures all group-time cells and all learners use the same unit-level fold assignments.  Only the overall fold indices (`D_X$subsamples`) need to be supplied; `ddml` automatically derives the D-stratified subsamples for the outcome equations by intersecting with the $D=0$ and $D=1$ indices.
+
+2. **Extra outputs via `extra_gt`:** Returning the full `ddml_att` fit as `ddml_fit` makes it available on the output object via `result$extra_gt` for per-cell diagnostics and re-estimation; see below.
+
+
+## Robustness Check: Nonparametric Nuisance Estimators
+
+We consider three nonparametric specifications to compare against the default linear estimator:
+
+1. **Gradient tree boosting (depth 1)** via `mdl_xgboost` (300 rounds, max depth 1)
+2. **Gradient tree boosting (depth 2)** via `mdl_xgboost` (300 rounds, max depth 2)
+3. **Short-stacking** combining the parametric specification with multiple gradient tree boosting configurations
+
+All specifications use 20-fold cross-fitting with consistent fold assignments.  We use a relatively high number of folds here so that the training sets remain large even for the smaller group-time cells.
+
+First, we pre-assign fold IDs at the unit level:
+
+```{r fold_setup, eval = has_ddml}
+K <- 20
+mpdta$fold_id <- sample(seq_len(K), nrow(mpdta), replace = TRUE)
+```
+
+Of course more advanced subsampling schemes are also possible here, including stratification across treatment cohorts.
+
+### Gradient Tree Boosting (depth 1)
+
+```{r xgboost_run, eval = has_ddml, warning = FALSE}
+attgt_xgboost <- att_gt(
+  yname = "lemp",
+  gname = "first.treat",
+  idname = "countyreal",
+  tname = "year",
+  xformla = ~lpop,
+  data = mpdta,
+  est_method = ddml_did_method,
+  est_method_vars = "fold_id",
+  # --- forwarded to ddml_att via ... ---
+  learners = list(what = mdl_xgboost,
+                  args = list(nround = 300,
+                              max_depth = 1)),
+  sample_folds = K,
+  silent = TRUE)
+```
+
+
+### Gradient Tree Boosting (depth 2)
+
+```{r xgboost2_run, eval = has_ddml, warning = FALSE}
+attgt_xgboost2 <- att_gt(
+  yname = "lemp",
+  gname = "first.treat",
+  idname = "countyreal",
+  tname = "year",
+  xformla = ~lpop,
+  data = mpdta,
+  est_method = ddml_did_method,
+  est_method_vars = "fold_id",
+  # --- forwarded to ddml_att via ... ---
+  learners = list(what = mdl_xgboost,
+                  args = list(nround = 300,
+                              max_depth = 2)),
+  sample_folds = K,
+  silent = TRUE)
+```
+
+
+### Short-Stacking
+
+Instead of committing to a single learner, we can simultaneously consider multiple learners and optimally combine them via non-negative least squares (NNLS).  Crucially, the stacking ensemble includes the linear/logistic specifications used by **did**'s default estimator, so machine learners are only selected if they improve out-of-sample fit.
+
+*Note: small-sample and trimming warnings are suppressed below for readability.*
+
+```{r stacking_run, eval = has_ddml, warning = FALSE}
+stacking_learners <- list(
+  list(what = ols, args = list(const = FALSE)),
+  list(what = mdl_xgboost,
+       args = list(nround = 100, max_depth = 1)),
+  list(what = mdl_xgboost,
+       args = list(nround = 300, max_depth = 1)),
+  list(what = mdl_xgboost,
+       args = list(nround = 100, max_depth = 2)),
+  list(what = mdl_xgboost,
+       args = list(nround = 300, max_depth = 2)))
+
+stacking_learners_DX <- list(
+  list(what = mdl_glm),
+  list(what = mdl_xgboost,
+       args = list(nround = 100, max_depth = 1)),
+  list(what = mdl_xgboost,
+       args = list(nround = 300, max_depth = 1)),
+  list(what = mdl_xgboost,
+       args = list(nround = 100, max_depth = 2)),
+  list(what = mdl_xgboost,
+       args = list(nround = 300, max_depth = 2)))
+
+attgt_stacking <- att_gt(
+  yname = "lemp",
+  gname = "first.treat",
+  idname = "countyreal",
+  tname = "year",
+  xformla = ~lpop,
+  data = mpdta,
+  est_method = ddml_did_method,
+  est_method_vars = "fold_id",
+  # --- forwarded to ddml_att via ... ---
+  learners = stacking_learners,
+  learners_DX = stacking_learners_DX,
+  ensemble_type = "nnls",
+  sample_folds = K,
+  shortstack = TRUE,
+  silent = TRUE)
+```
+
+
+## Re-estimation with a Different Ensemble
+
+The `extra_gt` output captures the full `ddml_att` fit for each group-time cell. These stored fits contain the cross-fitted predictions (`$fitted`) and sample splits (`$splits`), which can be passed back to `ddml_att` to recompute estimates with a different ensemble type *without re-fitting any learners*.
+
+Since `att_gt` forwards the current cell's group (`g`) and time period (`t`) to custom estimation methods, we can extend `ddml_did_method` to accept a `prev_fits` argument and look up the correct stored fit by cell identity:
+
+```{r passthrough_wrapper, eval = has_ddml}
+ddml_did_reestimate <- function(y1, y0, D, covariates, i.weights, inffunc,
+                                data = NULL, g = NULL, t = NULL, ...) {
+  delta_y <- y1 - y0
+  dots <- list(...)
+
+  # Look up stored fit by (g,t) key for re-estimation
+  if (!is.null(dots$prev_fits) && !is.null(g) && !is.null(t)) {
+    key <- paste(g, t, sep = ".")
+    prev <- dots$prev_fits[[key]]
+    dots$prev_fits <- NULL  # don't forward to ddml_att
+    if (!is.null(prev) && !is.null(prev$ddml_fit)) {
+      prev_fit <- prev$ddml_fit
+      dots$learners <- prev_fit$learners
+      dots$learners_DX <- prev_fit$learners_DX
+      dots$fitted <- prev_fit$fitted
+      dots$splits <- prev_fit$splits
+    }
+  }
+
+  att_fit <- do.call(ddml_att, c(list(y = delta_y, D = D, X = covariates),
+                                 dots))
+
+  list(ATT = coef(att_fit),
+       att.inf.func = att_fit$scores[, 1, 1],
+       ddml_fit = att_fit)
+}
+```
+
+We build a named lookup from the stacking result and re-estimate using the single-best learner ensemble, skipping all cross-fitting:
+
+```{r passthrough_run, eval = has_ddml, warning = FALSE}
+# Build named lookup: "g.t" -> extra_gt entry
+prev_fits <- setNames(
+  attgt_stacking$extra_gt,
+  paste(attgt_stacking$group, attgt_stacking$t, sep = ".")
+)
+
+attgt_singlebest <- att_gt(
+  yname = "lemp",
+  gname = "first.treat",
+  idname = "countyreal",
+  tname = "year",
+  xformla = ~lpop,
+  data = mpdta,
+  est_method = ddml_did_reestimate,
+  # --- forwarded via ... ---
+  prev_fits = prev_fits,
+  ensemble_type = "singlebest",
+  shortstack = TRUE,
+  silent = TRUE)
+```
+
+
+## Comparing Results
+
+We can compare the group-time average treatment effects across all estimators:
+
+```{r comparison, eval = has_ddml}
+comparison <- data.frame(
+  group = attgt_lm$group,
+  time = attgt_lm$t,
+  linear = round(attgt_lm$att, 4),
+  xgb_d1 = round(attgt_xgboost$att, 4),
+  xgb_d2 = round(attgt_xgboost2$att, 4),
+  stacking = round(attgt_stacking$att, 4),
+  singlebest = round(attgt_singlebest$att, 4)
+)
+print(comparison)
+```
+
+The dynamic treatment effects tell a similar story:
+
+```{r comparison_dyn, eval = has_ddml}
+dyn_xgboost <- aggte(attgt_xgboost, type = "dynamic")
+dyn_xgboost2 <- aggte(attgt_xgboost2, type = "dynamic")
+dyn_stacking <- aggte(attgt_stacking, type = "dynamic")
+dyn_singlebest <- aggte(attgt_singlebest, type = "dynamic")
+
+dyn_comparison <- data.frame(
+  event_time = dyn_lm$egt,
+  linear = round(dyn_lm$att.egt, 4),
+  xgb_d1 = round(dyn_xgboost$att.egt, 4),
+  xgb_d2 = round(dyn_xgboost2$att.egt, 4),
+  stacking = round(dyn_stacking$att.egt, 4),
+  singlebest = round(dyn_singlebest$att.egt, 4)
+)
+print(dyn_comparison)
+```
+
+```{r stacking_dyn_plot, eval = has_ddml, fig.width=8, fig.height=5, fig.align='center', out.width="90%", dpi = 200}
+ggdid(dyn_stacking, ylim = c(-.4, .4))
+```
+
+
+## Learner Diagnostics
+
+The `extra_gt` output provides per-cell access to the full `ddml_att` fit objects, enabling rich learner diagnostics without global assignment. The `diagnostics()` function from `ddml` summarizes per-learner MSPE, R-squared, and ensemble weights:
+
+```{r diagnostics, eval = has_ddml}
+# Diagnostics for the first group-time cell
+diagnostics(attgt_stacking$extra_gt[[1]]$ddml_fit)
+```
+
+We can also summarize stacking weights across all group-time pairs:
+
+```{r weight_summary, eval = has_ddml}
+n_gt <- length(attgt_stacking$extra_gt)
+
+# Extract outcome and propensity score weights across all (g,t) cells
+w_y_list <- lapply(seq_len(n_gt), function(i) {
+  fit <- attgt_stacking$extra_gt[[i]]$ddml_fit
+  if (!is.null(fit)) fit$ensemble_weights$y_X_D0 else NULL
+})
+w_d_list <- lapply(seq_len(n_gt), function(i) {
+  fit <- attgt_stacking$extra_gt[[i]]$ddml_fit
+  if (!is.null(fit)) fit$ensemble_weights$D_X else NULL
+})
+
+# Remove NULLs (skipped cells)
+w_y_list <- Filter(Negate(is.null), w_y_list)
+w_d_list <- Filter(Negate(is.null), w_d_list)
+
+if (length(w_y_list) > 0) {
+  w_y_mat <- do.call(rbind, lapply(w_y_list, function(w) as.vector(w)))
+  w_d_mat <- do.call(rbind, lapply(w_d_list, function(w) as.vector(w)))
+
+  learner_names <- c("OLS/Logit", "XGB (100,d1)", "XGB (300,d1)",
+                     "XGB (100,d2)", "XGB (300,d2)")
+  colnames(w_y_mat) <- learner_names
+  colnames(w_d_mat) <- learner_names
+
+  summarize_weights <- function(w_mat) {
+    data.frame(min  = apply(w_mat, 2, min),
+               mean = apply(w_mat, 2, mean),
+               max  = apply(w_mat, 2, max))
+  }
+
+  cat("Outcome reduced form---stacking weights:\n")
+  print(round(summarize_weights(w_y_mat), 4))
+
+  cat("\nPropensity score---stacking weights:\n")
+  print(round(summarize_weights(w_d_mat), 4))
+}
+```
+
+In this application with a single covariate, we expect the parametric learners (OLS/logit) to receive most of the stacking weight---reassuring us that the default linear estimator is adequate here.
+
+In applications with many control variables or complex interactions, one would typically observe more weight on the nonparametric learners. See Ahrens et al. (2025) for further discussion.
+
+
+## References
+
+Ahrens A, Chernozhukov V, Hansen C, Kozbur D, Schaffer M, Wiemann T (2025). "An Introduction to Double/Debiased Machine Learning." Journal of Economic Literature, forthcoming.
+
+Callaway B, Sant'Anna P (2021). "Difference-in-differences with multiple time periods." Journal of Econometrics, 200--230.
+
+Chang NC (2020). "Double/debiased machine learning for difference-in-difference models." The Econometrics Journal, 177--191.
